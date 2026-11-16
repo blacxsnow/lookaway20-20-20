@@ -59,6 +59,22 @@ export const SOURCES: Source[] = [
     detail: "2023;46(2):101744 · clinical study",
     url: "https://doi.org/10.1016/j.clae.2022.101744",
   },
+  {
+    id: "aao-kids",
+    short: "AAO",
+    title: "Screen Use for Kids",
+    publisher: "American Academy of Ophthalmology",
+    detail: "Reviewed by Rahul N. Khurana, MD",
+    url: "https://www.aao.org/eye-health/tips-prevention/screen-use-kids",
+  },
+  {
+    id: "aao-myopia",
+    short: "AAO",
+    title: "Nearsightedness: What Is Myopia?",
+    publisher: "American Academy of Ophthalmology",
+    detail: "Eye health information for patients",
+    url: "https://www.aao.org/eye-health/diseases/myopia-nearsightedness",
+  },
 ];
 
 export interface GuideItem {
@@ -165,3 +181,44 @@ export const SEE_A_DOCTOR: GuideItem = {
 export function sourceNumber(id: string): number {
   return SOURCES.findIndex((s) => s.id === id) + 1;
 }
+
+export const KIDS_TIPS: GuideItem[] = [
+  {
+    title: "Very young children",
+    body: "The American Academy of Pediatrics recommends no digital media (except video-chatting) before 18–24 months. The WHO suggests no screen time before age 1.",
+    sources: ["aao-kids"],
+  },
+  {
+    title: "Get outside",
+    body: "More time outdoors in natural light lowers a child's risk of nearsightedness, and time outdoors in early childhood can slow it down.",
+    sources: ["aao-myopia", "aao-kids"],
+  },
+  {
+    title: "Breaks still help",
+    body: "Screen eye strain in kids is temporary. The easiest fix is a habit of looking up and focusing on something in the distance now and then.",
+    sources: ["aao-kids"],
+  },
+  {
+    title: "Screens off before bed",
+    body: "Screen use close to bedtime can harm sleep quality, which matters a lot for growing children.",
+    sources: ["aao-kids"],
+  },
+];
+
+export const KIDS_LIMITS_NOTE =
+  "This app can't lock the device. For real limits, use Screen Time (iPhone/iPad) or Google Family Link (Android).";
+
+/** Guided steps during a break. Each step is backed by a listed source. */
+export const BREAK_STEPS: { text: string; sources: string[] }[] = [
+  { text: "Find something at least 20 feet (6 m) away and rest your eyes on it", sources: ["aoa-cvs"] },
+  { text: "Blink fully and slowly, a few times", sources: ["aao-strain"] },
+  { text: "Keep looking far away — let your focus relax", sources: ["aao-blue"] },
+  { text: "Blink fully once more before you look back", sources: ["aao-strain"] },
+];
+
+export const KIDS_BREAK_GAMES = [
+  { emoji: "🌳", text: "Can you spot a tree far, far away?" },
+  { emoji: "☁️", text: "Find a cloud! What shape is it?" },
+  { emoji: "🐦", text: "Look for a bird or something that moves far away" },
+  { emoji: "🦉", text: "Blink like a sleepy owl — slow and big!" },
+];

@@ -36,3 +36,7 @@ use the editor.
 - Settings and daily stats are stored in the browser's localStorage; no backend. Why: a personal timer needs no account.
 - Sounds are synthesized with the Web Audio API in `src/lib/sounds.ts`; no audio files. Why: tiny, offline, and works without asset hosting.
 - Eye-care guide content lives as data in `src/lib/eye-care-guide.ts`; every item lists source ids from `SOURCES`. Why: user requires evidence-backed info with visible references.
+
+- Kids-mode rules (allowance, bonus, PIN hash, stars) live as pure functions in `src/lib/kids-mode.ts` with tests; stored on-device under `lookaway:kids`. Why: testable and works offline without accounts.
+- Offline support uses vite-plugin-pwa (generateSW) and is registered only from `src/lib/pwa.ts`, which refuses dev, preview and iframes. Why: service workers must never cache the editor preview.
+- Data is offline-first: localStorage is the source of truth; any future cloud sync must be optional and merge into it. Why: the app must keep working with no internet or account.

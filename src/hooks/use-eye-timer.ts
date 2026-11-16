@@ -13,6 +13,10 @@ import {
   isWithinWorkHours,
   isWorkDayFn,
   lastDays,
+  MISSED_BREAK_GRACE_MS,
+  overdueMs,
+  screenTimeDelta,
+  weekInsights,
   normalizeSettings,
   parseDayKey,
   pause as pauseState,
@@ -26,9 +30,11 @@ import {
   type EyeSettings,
   type TimerState,
 } from "@/lib/eye-timer";
+import { DEFAULT_KIDS, isTimeUp, type KidsSettings } from "@/lib/kids-mode";
 
 const SETTINGS_KEY = "lookaway:settings";
 const STATS_KEY = "lookaway:stats";
+const KIDS_KEY = "lookaway:kids";
 
 function readJSON<T>(key: string, fallback: T): T {
   try {
@@ -58,11 +64,22 @@ export function useEyeTimer() {
   // User chose to keep going outside working hours; cleared when hours begin.
   const [override, setOverride] = useState(false);
   const lastBlinkRef = useRef<number>(Date.now());
+  const [kids, setKids] = useState<KidsSettings>(DEFAULT_KIDS);
+  const lastBeatRef = useRef<number>(Date.now());
 
   // Load saved settings and stats after hydration.
   useEffect(() => {
     setSettings(normalizeSettings(readJSON(SETTINGS_KEY, DEFAULT_SETTINGS)));
     setAllStats(readJSON<Record<string, DayStats>>(STATS_KEY, {}));
+    setKids(readJSON(KIDS_KEY, DEFAULT_KIDS));
+  }, []);
+
+  const updateKids = useCallback((patch: Partial<KidsSettings>) => {
+    setKids((prev) => {
+      const next = { ...prev, ...patch };
+      localStorage.setItem(KIDS_KEY, JSON.stringify(next));
+      return next;
+    });
   }, []);
 
   const updateSettings = useCallback((patch: Partial<EyeSettings>) => {
@@ -76,7 +93,7 @@ export function useEyeTimer() {
   const bumpStats = useCallback((field: keyof DayStats) => {
     setAllStats((prev) => {
       const key = dayKey(new Date());
-      const day = prev[key] ?? EMPTY_DAY;
+      const day = { ...EMPTY_DAY, ...prev[key] };
       const next = { ...prev, [key]: { ...day, [field]: day[field] + 1 } };
       localStorage.setItem(STATS_KEY, JSON.stringify(next));
       return next;
@@ -89,6 +106,23 @@ export function useEyeTimer() {
   // Heartbeat: fast while counting down, slow otherwise (to notice working hours changing).
   const paused = isPaused(state);
   const fast = state.phase !== "idle" && !paused;
+
+  // Screen time: while the timer runs, or (in Kids mode) whenever the page is visible.
+  useEffect(() => {
+    const prev = lastBeatRef.current;
+    lastBeatRef.current = now;
+    const visible = document.visibilityState === "visible";
+    const counting = visible && (kids.enabled || (state.phase === "focus" && !isPaused(state)));
+    const d = screenTimeDelta(prev, now, counting);
+    if (d === 0) return;
+    setAllStats((p) => {
+      const key = dayKey(new Date(now));
+      const day = { ...EMPTY_DAY, ...p[key] };
+      const next = { ...p, [key]: { ...day, screenMs: day.screenMs + d } };
+      localStorage.setItem(STATS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, [now, kids.enabled, state]);
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), fast ? 250 : 1000);
     return () => window.clearInterval(id);
@@ -101,6 +135,10 @@ export function useEyeTimer() {
     if (!r.event) return;
     setState(r.state);
     if (r.event === "break-start") {
+      const late = overdueMs(state, now);
+      if (late > MISSED_BREAK_GRACE_MS) {
+        toast(`Welcome back! A break was due ${Math.round(late / 60_000)} min ago while the app was closed — let's take it now.`);
+      }
       if (s.sound) playSound(s.soundKind, s.volume, "start");
       notify("Time to look away", `Look at something 20 feet (6 m) away for ${s.breakSeconds} seconds.`);
     } else {
@@ -153,7 +191,12 @@ export function useEyeTimer() {
 
   // Streaks.
   const todayKey = dayKey(new Date(now));
-  const stats = allStats[todayKey] ?? EMPTY_DAY;
+  const stats = { ...EMPTY_DAY, ...allStats[todayKey] };
+  const timeUp = isTimeUp(kids, todayKey, stats.screenMs);
+  useEffect(() => {
+    if (timeUp && state.phase !== "idle") setState(IDLE);
+  }, [timeUp, state.phase]);
+  const insights = useMemo(() => weekInsights(allStats, parseDayKey(todayKey)), [allStats, todayKey]);
   const { workHoursEnabled, workDays } = settings;
   const { streak, week } = useMemo(() => {
     const today = parseDayKey(todayKey);
@@ -171,6 +214,7 @@ export function useEyeTimer() {
 
   const actions = {
     start: () => {
+      if (timeUp) return;
       unlockAudio();
       if (settingsRef.current.notifications) void askNotifications();
       const t = Date.now();
@@ -227,6 +271,11 @@ export function useEyeTimer() {
     stats,
     streak,
     week,
+    insights,
+    kids,
+    updateKids,
+    todayKey,
+    timeUp,
     inHours,
     autoPaused,
     blinkCue,

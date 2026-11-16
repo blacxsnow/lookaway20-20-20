@@ -133,9 +133,77 @@ export function dayKey(date: Date): string {
 export interface DayStats {
   breaks: number;
   skipped: number;
+  /** Milliseconds of counted screen time that day. */
+  screenMs: number;
 }
 
-export const EMPTY_DAY: DayStats = { breaks: 0, skipped: 0 };
+export const EMPTY_DAY: DayStats = { breaks: 0, skipped: 0, screenMs: 0 };
+
+/** How late a focus phase ended (e.g. the phone slept). 0 if on time or not running. */
+export function overdueMs(state: TimerState, now: number): number {
+  if (state.phase === "idle" || state.endsAt === null) return 0;
+  return Math.max(0, now - state.endsAt);
+}
+
+/** A break counts as "missed while away" when it was due more than a minute ago. */
+export const MISSED_BREAK_GRACE_MS = 60_000;
+
+/**
+ * Screen time to add for one heartbeat. Gaps longer than maxGapMs mean the page
+ * was frozen or asleep, so they don't count.
+ */
+export function screenTimeDelta(prev: number, now: number, counting: boolean, maxGapMs = 5_000): number {
+  if (!counting) return 0;
+  const d = now - prev;
+  return d > 0 && d <= maxGapMs ? d : 0;
+}
+
+export interface InsightDay {
+  key: string;
+  letter: string;
+  isToday: boolean;
+  breaks: number;
+  skipped: number;
+  screenMs: number;
+}
+
+export function weekInsights(all: Record<string, DayStats>, today: Date, n = 7) {
+  const days: InsightDay[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+    const key = dayKey(d);
+    const s = all[key];
+    days.push({
+      key,
+      letter: DAY_LETTER[d.getDay()]!,
+      isToday: i === 0,
+      breaks: s?.breaks ?? 0,
+      skipped: s?.skipped ?? 0,
+      screenMs: s?.screenMs ?? 0,
+    });
+  }
+  const breaks = days.reduce((a, d) => a + d.breaks, 0);
+  const skipped = days.reduce((a, d) => a + d.skipped, 0);
+  const screenMs = days.reduce((a, d) => a + d.screenMs, 0);
+  const total = breaks + skipped;
+  return {
+    days,
+    breaks,
+    skipped,
+    screenMs,
+    /** Share of breaks taken rather than skipped, 0–100; null with no breaks. */
+    finishRate: total === 0 ? null : Math.round((breaks / total) * 100),
+    activeDays: days.filter((d) => d.breaks > 0).length,
+  };
+}
+
+export function formatDuration(ms: number): string {
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
 
 export function parseDayKey(key: string): Date {
   const [y, m, d] = key.split("-").map(Number);

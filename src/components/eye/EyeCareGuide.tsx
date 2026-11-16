@@ -11,7 +11,7 @@ import {
   type GuideItem,
 } from "@/lib/eye-care-guide";
 
-function SourceTags({ ids }: { ids: string[] }) {
+export function SourceTags({ ids }: { ids: string[] }) {
   return (
     <span className="mt-2 flex flex-wrap gap-1">
       {ids.map((id) => {
@@ -34,7 +34,7 @@ function SourceTags({ ids }: { ids: string[] }) {
   );
 }
 
-function Item({ item, index }: { item: GuideItem; index?: number }) {
+export function Item({ item, index }: { item: GuideItem; index?: number }) {
   return (
     <li className="flex gap-3 rounded-2xl border bg-card p-4">
       {index !== undefined && (

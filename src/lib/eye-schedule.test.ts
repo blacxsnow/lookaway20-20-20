@@ -36,7 +36,7 @@ describe("working hours", () => {
 });
 
 describe("day streaks", () => {
-  const b = { breaks: 1, skipped: 0 };
+  const b = { breaks: 1, skipped: 0, screenMs: 0 };
 
   it("counts consecutive days with at least one break", () => {
     const all = { "2026-11-14": b, "2026-11-15": b, "2026-11-16": b };
@@ -46,7 +46,7 @@ describe("day streaks", () => {
   it("a missed day resets the streak but keeps the best", () => {
     const all = { "2026-11-10": b, "2026-11-11": b, "2026-11-12": b, "2026-11-14": b, "2026-11-15": b, "2026-11-16": b };
     // 13th missed
-    expect(computeStreak({ ...all, "2026-11-13": { breaks: 0, skipped: 2 } }, mon(12))).toEqual({ current: 3, best: 3 });
+    expect(computeStreak({ ...all, "2026-11-13": { breaks: 0, skipped: 2, screenMs: 0 } }, mon(12))).toEqual({ current: 3, best: 3 });
     const longer = { ...all, "2026-11-09": b };
     expect(computeStreak(longer, mon(12))).toEqual({ current: 3, best: 4 });
   });
