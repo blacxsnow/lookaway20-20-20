@@ -64,7 +64,7 @@ export function SettingsSheet({ settings, onChange, askNotifications }: Props) {
               max={60}
               step={5}
               value={[settings.focusMinutes]}
-              onValueChange={([v]) => onChange({ focusMinutes: v })}
+              onValueChange={(v) => onChange({ focusMinutes: v[0] ?? 20 })}
               aria-label="Screen time before a break"
             />
           </div>
@@ -80,7 +80,7 @@ export function SettingsSheet({ settings, onChange, askNotifications }: Props) {
               max={60}
               step={5}
               value={[settings.breakSeconds]}
-              onValueChange={([v]) => onChange({ breakSeconds: v })}
+              onValueChange={(v) => onChange({ breakSeconds: v[0] ?? 20 })}
               aria-label="Look-away time"
             />
           </div>
@@ -124,7 +124,7 @@ export function SettingsSheet({ settings, onChange, askNotifications }: Props) {
                 max={10}
                 step={1}
                 value={[settings.blinkEveryMinutes]}
-                onValueChange={([v]) => onChange({ blinkEveryMinutes: v })}
+                onValueChange={(v) => onChange({ blinkEveryMinutes: v[0] ?? 5 })}
                 aria-label="Blink nudge interval"
               />
             </div>
