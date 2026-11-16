@@ -1,14 +1,12 @@
-import { Check, Play } from "lucide-react";
+import { ChevronRight, Clock, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { DAY_LETTER, type EyeSettings } from "@/lib/eye-timer";
-import { SOUNDS, playSound, unlockAudio } from "@/lib/sounds";
-import { cn } from "@/lib/utils";
+import { workHoursSummary, type EyeSettings } from "@/lib/eye-timer";
+import { SOUNDS } from "@/lib/sounds";
 
 interface Props {
   open: boolean;
@@ -16,10 +14,9 @@ interface Props {
   settings: EyeSettings;
   onChange: (patch: Partial<EyeSettings>) => void;
   askNotifications: () => Promise<NotificationPermission | "unsupported">;
+  onOpenWorkHours: () => void;
+  onOpenSound: () => void;
 }
-
-const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -41,6 +38,35 @@ function Row({ id, title, hint, children }: { id: string; title: string; hint: s
       </div>
       {children}
     </div>
+  );
+}
+
+function LinkRow({
+  icon,
+  title,
+  value,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  value: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-3 rounded-2xl border bg-card px-4 py-3 text-left transition-colors hover:bg-muted"
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-primary">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold">{title}</span>
+        <span className="block truncate text-xs text-muted-foreground">{value}</span>
+      </span>
+      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+    </button>
   );
 }
 
@@ -74,21 +100,26 @@ function SliderField(props: {
   );
 }
 
-export function SettingsSheet({ open, onOpenChange, settings, onChange, askNotifications }: Props) {
-  const toggleDay = (d: number) => {
-    const has = settings.workDays.includes(d);
-    onChange({ workDays: has ? settings.workDays.filter((x) => x !== d) : [...settings.workDays, d] });
-  };
+export function SettingsSheet({
+  open,
+  onOpenChange,
+  settings,
+  onChange,
+  askNotifications,
+  onOpenWorkHours,
+  onOpenSound,
+}: Props) {
+  const soundLabel = SOUNDS.find((s) => s.id === settings.soundKind)?.label ?? "Chime";
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto bg-background sm:max-w-md">
+      <SheetContent className="w-full max-w-md overflow-y-auto bg-background sm:max-w-md">
         <SheetHeader>
           <SheetTitle className="font-display text-2xl font-normal">Your rhythm</SheetTitle>
           <SheetDescription>The defaults follow the 20-20-20 rule. Adjust only if you need to.</SheetDescription>
         </SheetHeader>
 
-        <div className="mt-6 space-y-9 pb-6">
+        <div className="mt-6 space-y-8 pb-6">
           <Group title="Timing">
             <div className="space-y-6">
               <SliderField
@@ -112,127 +143,21 @@ export function SettingsSheet({ open, onOpenChange, settings, onChange, askNotif
             </div>
           </Group>
 
-          <Group title="Working hours">
-            <div className="rounded-2xl border bg-card px-4">
-              <Row id="workhours" title="Only during working hours" hint="Reminders rest outside these times">
-                <Switch
-                  id="workhours"
-                  checked={settings.workHoursEnabled}
-                  onCheckedChange={(v) => onChange({ workHoursEnabled: v })}
-                />
-              </Row>
-              {settings.workHoursEnabled && (
-                <div className="space-y-4 border-t pb-4 pt-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label htmlFor="ws" className="text-xs text-muted-foreground">
-                        Starts
-                      </Label>
-                      <Input
-                        id="ws"
-                        type="time"
-                        value={settings.workStart}
-                        onChange={(e) => e.target.value && onChange({ workStart: e.target.value })}
-                        className="mt-1 rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="we" className="text-xs text-muted-foreground">
-                        Ends
-                      </Label>
-                      <Input
-                        id="we"
-                        type="time"
-                        value={settings.workEnd}
-                        onChange={(e) => e.target.value && onChange({ workEnd: e.target.value })}
-                        className="mt-1 rounded-xl"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Work days</p>
-                    <div className="mt-2 flex justify-between gap-1">
-                      {DAY_ORDER.map((d) => {
-                        const on = settings.workDays.includes(d);
-                        return (
-                          <button
-                            key={d}
-                            type="button"
-                            aria-pressed={on}
-                            aria-label={DAY_NAMES[d]}
-                            onClick={() => toggleDay(d)}
-                            className={cn(
-                              "h-9 w-9 rounded-full text-xs font-semibold transition-colors",
-                              on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-secondary",
-                            )}
-                          >
-                            {DAY_LETTER[d]}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground">Days off won't break your streak.</p>
-                  </div>
-                </div>
-              )}
+          <Group title="Schedule & sound">
+            <div className="space-y-2">
+              <LinkRow
+                icon={<Clock className="h-4 w-4" />}
+                title="Working hours"
+                value={workHoursSummary(settings)}
+                onClick={onOpenWorkHours}
+              />
+              <LinkRow
+                icon={<Volume2 className="h-4 w-4" />}
+                title="Sound & volume"
+                value={settings.sound ? `${soundLabel} · ${settings.volume}%` : "Off"}
+                onClick={onOpenSound}
+              />
             </div>
-          </Group>
-
-          <Group title="Sound">
-            <div className="rounded-2xl border bg-card px-4">
-              <Row id="sound" title="Play a sound" hint="When a break starts and ends">
-                <Switch id="sound" checked={settings.sound} onCheckedChange={(v) => onChange({ sound: v })} />
-              </Row>
-            </div>
-            {settings.sound && (
-              <div className="mt-3 space-y-4">
-                <div role="radiogroup" aria-label="Break sound" className="grid gap-2">
-                  {SOUNDS.map((s) => {
-                    const on = settings.soundKind === s.id;
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        role="radio"
-                        aria-checked={on}
-                        onClick={() => {
-                          unlockAudio();
-                          onChange({ soundKind: s.id });
-                          playSound(s.id, settings.volume, "start");
-                        }}
-                        className={cn(
-                          "flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-colors",
-                          on ? "border-primary bg-secondary" : "bg-card hover:bg-muted",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-                            on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-                          )}
-                        >
-                          {on ? <Check className="h-4 w-4" /> : <Play className="h-3.5 w-3.5" />}
-                        </span>
-                        <span className="flex-1">
-                          <span className="block text-sm font-semibold">{s.label}</span>
-                          <span className="block text-xs text-muted-foreground">{s.hint}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <SliderField
-                  label="Volume"
-                  value={settings.volume}
-                  suffix="%"
-                  min={10}
-                  max={100}
-                  step={10}
-                  onChange={(v) => onChange({ volume: v })}
-                />
-                <p className="text-xs text-muted-foreground">Tap a sound to hear it.</p>
-              </div>
-            )}
           </Group>
 
           <Group title="Reminders">

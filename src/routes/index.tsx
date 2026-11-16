@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Clock, Coffee, Eye, Pause, Play, RotateCcw, Settings2, TimerReset } from "lucide-react";
+import { BookOpen, ChevronRight, Clock, Coffee, Eye, Pause, Play, RotateCcw, Settings2, TimerReset } from "lucide-react";
 
 import { BlinkCue } from "@/components/eye/BlinkCue";
 import { BreakOverlay } from "@/components/eye/BreakOverlay";
+import { EyeCareGuide } from "@/components/eye/EyeCareGuide";
 import { HowItWorks } from "@/components/eye/HowItWorks";
 import { SettingsSheet } from "@/components/eye/SettingsSheet";
+import { SoundDialog } from "@/components/eye/SoundDialog";
 import { StreakCard } from "@/components/eye/StreakCard";
 import { TimerRing } from "@/components/eye/TimerRing";
+import { WorkHoursDialog } from "@/components/eye/WorkHoursDialog";
 import { Button } from "@/components/ui/button";
 import { useEyeTimer } from "@/hooks/use-eye-timer";
-import { formatClock, isPaused, progress, workDaysLabel } from "@/lib/eye-timer";
+import { formatClock, formatTime12, isPaused, progress, workHoursSummary } from "@/lib/eye-timer";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -51,6 +54,9 @@ function Index() {
     askNotifications,
   } = useEyeTimer();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [workHoursOpen, setWorkHoursOpen] = useState(false);
+  const [soundOpen, setSoundOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const paused = isPaused(state);
   const idle = state.phase === "idle";
@@ -60,7 +66,7 @@ function Index() {
   const caption = idle
     ? `of screen time, then a ${settings.breakSeconds}-second eye break`
     : autoPaused
-      ? `resting until ${settings.workStart}`
+      ? `resting until ${formatTime12(settings.workStart)}`
       : paused
         ? "paused"
         : "until your next eye break";
@@ -87,28 +93,6 @@ function Index() {
           </h1>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setSettingsOpen(true)}
-          className="flex items-center gap-2 rounded-full border bg-card px-3.5 py-1.5 text-xs font-medium hover:bg-muted"
-        >
-          <Clock className="h-3.5 w-3.5 text-primary" />
-          {settings.workHoursEnabled ? (
-            <>
-              <span
-                className={cn("h-1.5 w-1.5 rounded-full", inHours ? "bg-primary" : "bg-accent")}
-                aria-hidden
-              />
-              {workDaysLabel(settings.workDays)} · {settings.workStart}–{settings.workEnd}
-              {!inHours && <span className="text-muted-foreground">· off hours</span>}
-            </>
-          ) : (
-            <>
-              Reminders anytime · <span className="text-primary">Set working hours</span>
-            </>
-          )}
-        </button>
-
         <TimerRing
           progress={progress(state, now)}
           label={label}
@@ -133,6 +117,28 @@ function Index() {
               <Play /> {autoPaused ? "Keep going anyway" : "Resume"}
             </Button>
           )}
+          <button
+            type="button"
+            onClick={() => setWorkHoursOpen(true)}
+            className="flex w-full items-center gap-3 rounded-full border bg-card py-2 pl-2 pr-4 text-left transition-colors hover:bg-muted"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-primary">
+              <Clock className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-1.5 text-xs font-semibold">
+                Working hours
+                {settings.workHoursEnabled && (
+                  <span
+                    className={cn("h-1.5 w-1.5 rounded-full", inHours ? "bg-primary" : "bg-accent")}
+                    aria-label={inHours ? "In working hours" : "Outside working hours"}
+                  />
+                )}
+              </span>
+              <span className="block truncate text-xs text-muted-foreground">{workHoursSummary(settings)}</span>
+            </span>
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          </button>
           {!idle && (
             <div className="grid grid-cols-3 gap-2">
               <Button variant="soft" onClick={actions.breakNow}>
@@ -170,6 +176,21 @@ function Index() {
           </dl>
 
           <HowItWorks />
+
+          <button
+            type="button"
+            onClick={() => setGuideOpen(true)}
+            className="flex w-full items-center gap-4 rounded-3xl bg-primary p-5 text-left text-primary-foreground shadow-soft transition-transform active:scale-[0.99]"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-foreground/15">
+              <BookOpen className="h-5 w-5" />
+            </span>
+            <span className="flex-1">
+              <span className="block font-display text-xl">Eye-care tips</span>
+              <span className="block text-xs opacity-80">Backed by eye doctors and published research</span>
+            </span>
+            <ChevronRight className="h-5 w-5 opacity-80" />
+          </button>
         </div>
       </main>
 
@@ -183,7 +204,17 @@ function Index() {
         settings={settings}
         onChange={updateSettings}
         askNotifications={askNotifications}
+        onOpenWorkHours={() => setWorkHoursOpen(true)}
+        onOpenSound={() => setSoundOpen(true)}
       />
+      <WorkHoursDialog
+        open={workHoursOpen}
+        onOpenChange={setWorkHoursOpen}
+        settings={settings}
+        onChange={updateSettings}
+      />
+      <SoundDialog open={soundOpen} onOpenChange={setSoundOpen} settings={settings} onChange={updateSettings} />
+      <EyeCareGuide open={guideOpen} onOpenChange={setGuideOpen} />
 
       {state.phase === "break" && (
         <BreakOverlay

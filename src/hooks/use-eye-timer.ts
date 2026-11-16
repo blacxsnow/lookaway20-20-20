@@ -13,6 +13,7 @@ import {
   isWithinWorkHours,
   isWorkDayFn,
   lastDays,
+  normalizeSettings,
   parseDayKey,
   pause as pauseState,
   remainingMs,
@@ -60,7 +61,7 @@ export function useEyeTimer() {
 
   // Load saved settings and stats after hydration.
   useEffect(() => {
-    setSettings(readJSON(SETTINGS_KEY, DEFAULT_SETTINGS));
+    setSettings(normalizeSettings(readJSON(SETTINGS_KEY, DEFAULT_SETTINGS)));
     setAllStats(readJSON<Record<string, DayStats>>(STATS_KEY, {}));
   }, []);
 

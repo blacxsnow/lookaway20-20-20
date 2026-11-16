@@ -5,7 +5,7 @@ export const SOUNDS: { id: SoundKind; label: string; hint: string }[] = [
   { id: "chime", label: "Chime", hint: "Bright, gentle three-note chime" },
   { id: "bowl", label: "Singing bowl", hint: "Warm, long-ringing tone" },
   { id: "windchimes", label: "Wind chimes", hint: "Soft, scattered bells" },
-  { id: "waves", label: "Ocean wave", hint: "One slow wave washing in" },
+  { id: "kalimba", label: "Kalimba", hint: "Soft plucked thumb-piano notes" },
   { id: "marimba", label: "Marimba", hint: "Round, wooden notes" },
 ];
 
@@ -84,30 +84,15 @@ export function playSound(kind: SoundKind, volume = 60, moment: "start" | "end" 
       }
       break;
     }
-    case "waves": {
-      const dur = moment === "start" ? 4.5 : 3;
-      const buffer = c.createBuffer(1, Math.floor(c.sampleRate * dur), c.sampleRate);
-      const data = buffer.getChannelData(0);
-      let last = 0;
-      for (let i = 0; i < data.length; i++) {
-        // Brown-ish noise: smoother and calmer than white noise.
-        last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02;
-        data[i] = last * 3.5;
-      }
-      const src = c.createBufferSource();
-      src.buffer = buffer;
-      const filter = c.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.setValueAtTime(300, t);
-      filter.frequency.linearRampToValueAtTime(1400, t + dur * 0.4);
-      filter.frequency.linearRampToValueAtTime(250, t + dur);
-      const g = c.createGain();
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.7, t + dur * 0.4);
-      g.gain.linearRampToValueAtTime(0, t + dur);
-      src.connect(filter).connect(g).connect(master);
-      src.start(t);
-      src.stop(t + dur);
+    case "kalimba": {
+      // Plucked tines: quick attack, gentle decay, a faint high overtone.
+      const notes = moment === "start" ? [587.33, 739.99, 880, 1174.66] : [880, 739.99, 587.33];
+      notes.forEach((f, i) => {
+        const at = t + i * 0.24;
+        tone(c, master, f, at, 0.22, 1.6, "sine", 0.004);
+        tone(c, master, f * 2, at, 0.05, 0.6, "sine", 0.004);
+        tone(c, master, f * 5.3, at, 0.015, 0.12, "sine", 0.002);
+      });
       break;
     }
     case "marimba": {

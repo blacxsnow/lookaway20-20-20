@@ -4,6 +4,7 @@ import {
   computeStreak,
   isWithinWorkHours,
   isWorkDayFn,
+  normalizeSettings,
   type EyeSettings,
 } from "./eye-timer";
 
@@ -64,5 +65,13 @@ describe("day streaks", () => {
 
   it("no breaks ever means no streak", () => {
     expect(computeStreak({}, mon(12))).toEqual({ current: 0, best: 0 });
+  });
+});
+
+describe("saved settings", () => {
+  it("an old saved Ocean wave sound falls back to the chime", () => {
+    const s = normalizeSettings({ soundKind: "waves" as never, volume: 40 });
+    expect(s.soundKind).toBe("chime");
+    expect(s.volume).toBe(40);
   });
 });

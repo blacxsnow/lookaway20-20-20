@@ -35,3 +35,4 @@ use the editor.
 - Countdown is derived from end timestamps, never by decrementing a counter. Why: background tabs throttle intervals.
 - Settings and daily stats are stored in the browser's localStorage; no backend. Why: a personal timer needs no account.
 - Sounds are synthesized with the Web Audio API in `src/lib/sounds.ts`; no audio files. Why: tiny, offline, and works without asset hosting.
+- Eye-care guide content lives as data in `src/lib/eye-care-guide.ts`; every item lists source ids from `SOURCES`. Why: user requires evidence-backed info with visible references.

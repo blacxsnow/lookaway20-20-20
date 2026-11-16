@@ -3,7 +3,8 @@
 
 export type Phase = "idle" | "focus" | "break";
 
-export type SoundKind = "chime" | "bowl" | "windchimes" | "waves" | "marimba";
+export type SoundKind = "chime" | "bowl" | "windchimes" | "kalimba" | "marimba";
+export const SOUND_KINDS: SoundKind[] = ["chime", "bowl", "windchimes", "kalimba", "marimba"];
 
 export interface EyeSettings {
   /** Minutes of screen time before a break (the first "20"). */
@@ -243,4 +244,23 @@ export function lastDays(
     });
   }
   return out;
+}
+
+/** "18:30" → "6:30 PM" */
+export function formatTime12(hhmm: string): string {
+  const [h = 0, m = 0] = hhmm.split(":").map(Number);
+  const suffix = h >= 12 ? "PM" : "AM";
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${suffix}`;
+}
+
+export function workHoursSummary(s: EyeSettings): string {
+  if (!s.workHoursEnabled) return "Off · reminders anytime";
+  return `${workDaysLabel(s.workDays)} · ${formatTime12(s.workStart)}–${formatTime12(s.workEnd)}`;
+}
+
+/** Fix settings saved by older versions (e.g. a sound that no longer exists). */
+export function normalizeSettings(raw: Partial<EyeSettings>): EyeSettings {
+  const s = { ...DEFAULT_SETTINGS, ...raw };
+  if (!SOUND_KINDS.includes(s.soundKind)) s.soundKind = DEFAULT_SETTINGS.soundKind;
+  return s;
 }
