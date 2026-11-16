@@ -34,3 +34,4 @@ use the editor.
 - Timer rules live as pure functions in `src/lib/eye-timer.ts` (tested in `eye-timer.test.ts`); UI hooks only call them. Why: keeps the reminder timing testable and correct.
 - Countdown is derived from end timestamps, never by decrementing a counter. Why: background tabs throttle intervals.
 - Settings and daily stats are stored in the browser's localStorage; no backend. Why: a personal timer needs no account.
+- Sounds are synthesized with the Web Audio API in `src/lib/sounds.ts`; no audio files. Why: tiny, offline, and works without asset hosting.

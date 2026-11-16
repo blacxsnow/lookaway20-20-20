@@ -3,25 +3,43 @@
 
 export type Phase = "idle" | "focus" | "break";
 
+export type SoundKind = "chime" | "bowl" | "windchimes" | "waves" | "marimba";
+
 export interface EyeSettings {
   /** Minutes of screen time before a break (the first "20"). */
   focusMinutes: number;
   /** Seconds to look away during a break (the last "20"). */
   breakSeconds: number;
   sound: boolean;
+  soundKind: SoundKind;
+  /** 0–100 */
+  volume: number;
   notifications: boolean;
   blinkNudges: boolean;
   /** How often to show a gentle "blink" cue during focus time. */
   blinkEveryMinutes: number;
+  /** When on, reminders only run inside the working window below. */
+  workHoursEnabled: boolean;
+  /** "HH:MM", 24-hour. */
+  workStart: string;
+  workEnd: string;
+  /** 0 = Sunday … 6 = Saturday */
+  workDays: number[];
 }
 
 export const DEFAULT_SETTINGS: EyeSettings = {
   focusMinutes: 20,
   breakSeconds: 20,
   sound: true,
+  soundKind: "chime",
+  volume: 60,
   notifications: true,
   blinkNudges: true,
   blinkEveryMinutes: 5,
+  workHoursEnabled: false,
+  workStart: "09:00",
+  workEnd: "18:00",
+  workDays: [1, 2, 3, 4, 5],
 };
 
 /** The distance to look at during a break: 20 feet ≈ 6 metres. */
@@ -117,3 +135,112 @@ export interface DayStats {
 }
 
 export const EMPTY_DAY: DayStats = { breaks: 0, skipped: 0 };
+
+export function parseDayKey(key: string): Date {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1);
+}
+
+// ---------- Working hours ----------
+
+function toMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
+/** True when reminders should run at this moment. Supports overnight windows (e.g. 22:00–06:00). */
+export function isWithinWorkHours(settings: EyeSettings, date: Date): boolean {
+  if (!settings.workHoursEnabled) return true;
+  const start = toMinutes(settings.workStart);
+  const end = toMinutes(settings.workEnd);
+  const mins = date.getHours() * 60 + date.getMinutes();
+  if (start === end) return settings.workDays.includes(date.getDay());
+  if (start < end) {
+    return settings.workDays.includes(date.getDay()) && mins >= start && mins < end;
+  }
+  // Overnight: the shift belongs to the day it started on.
+  if (mins >= start) return settings.workDays.includes(date.getDay());
+  if (mins < end) return settings.workDays.includes((date.getDay() + 6) % 7);
+  return false;
+}
+
+export function isWorkDayFn(settings: EyeSettings): (d: Date) => boolean {
+  if (!settings.workHoursEnabled) return () => true;
+  return (d) => settings.workDays.includes(d.getDay());
+}
+
+const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+export const DAY_LETTER = ["S", "M", "T", "W", "T", "F", "S"];
+
+export function workDaysLabel(days: number[]): string {
+  const set = [...new Set(days)].sort((a, b) => a - b);
+  if (set.length === 7) return "Every day";
+  if (set.join() === "1,2,3,4,5") return "Mon–Fri";
+  if (set.join() === "0,6") return "Weekends";
+  if (set.length === 0) return "No days";
+  return set.map((d) => DAY_SHORT[d]).join(", ");
+}
+
+// ---------- Streaks ----------
+
+export interface Streak {
+  current: number;
+  best: number;
+}
+
+/**
+ * A streak day is any day with at least one completed break.
+ * Today without a break yet doesn't break the streak, and neither do
+ * non-working days (when working hours are on).
+ */
+export function computeStreak(
+  all: Record<string, DayStats>,
+  today: Date,
+  isWorkDay: (d: Date) => boolean = () => true,
+): Streak {
+  const keys = Object.keys(all).filter((k) => (all[k]?.breaks ?? 0) > 0).sort();
+  if (keys.length === 0) return { current: 0, best: 0 };
+  const todayKey = dayKey(today);
+  const cursor = parseDayKey(keys[0]!);
+  let run = 0;
+  let best = 0;
+  for (let guard = 0; guard < 3660; guard++) {
+    const key = dayKey(cursor);
+    if (key > todayKey) break;
+    const done = (all[key]?.breaks ?? 0) > 0;
+    if (done) run++;
+    else if (key !== todayKey && isWorkDay(cursor)) run = 0;
+    best = Math.max(best, run);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return { current: run, best };
+}
+
+export interface DayDot {
+  key: string;
+  letter: string;
+  done: boolean;
+  isToday: boolean;
+  restDay: boolean;
+}
+
+export function lastDays(
+  all: Record<string, DayStats>,
+  today: Date,
+  n: number,
+  isWorkDay: (d: Date) => boolean = () => true,
+): DayDot[] {
+  const out: DayDot[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+    const key = dayKey(d);
+    out.push({
+      key,
+      letter: DAY_LETTER[d.getDay()]!,
+      done: (all[key]?.breaks ?? 0) > 0,
+      isToday: i === 0,
+      restDay: !isWorkDay(d),
+    });
+  }
+  return out;
+}

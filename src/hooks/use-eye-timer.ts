@@ -1,14 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { playChime, unlockAudio } from "@/lib/chime";
+import { playSound, unlockAudio } from "@/lib/sounds";
 import {
   DEFAULT_SETTINGS,
   EMPTY_DAY,
   IDLE,
+  computeStreak,
   dayKey,
   formatClock,
   isPaused,
+  isWithinWorkHours,
+  isWorkDayFn,
+  lastDays,
+  parseDayKey,
   pause as pauseState,
   remainingMs,
   resume as resumeState,
@@ -46,15 +51,17 @@ export function useEyeTimer() {
   const [settings, setSettings] = useState<EyeSettings>(DEFAULT_SETTINGS);
   const [state, setState] = useState<TimerState>(IDLE);
   const [now, setNow] = useState(() => Date.now());
-  const [stats, setStats] = useState<DayStats>(EMPTY_DAY);
+  const [allStats, setAllStats] = useState<Record<string, DayStats>>({});
   const [blinkCue, setBlinkCue] = useState(false);
+  const [autoPaused, setAutoPaused] = useState(false);
+  // User chose to keep going outside working hours; cleared when hours begin.
+  const [override, setOverride] = useState(false);
   const lastBlinkRef = useRef<number>(Date.now());
 
-  // Load saved settings and today's stats after hydration.
+  // Load saved settings and stats after hydration.
   useEffect(() => {
     setSettings(readJSON(SETTINGS_KEY, DEFAULT_SETTINGS));
-    const all = readJSON<Record<string, DayStats>>(STATS_KEY, {});
-    setStats(all[dayKey(new Date())] ?? EMPTY_DAY);
+    setAllStats(readJSON<Record<string, DayStats>>(STATS_KEY, {}));
   }, []);
 
   const updateSettings = useCallback((patch: Partial<EyeSettings>) => {
@@ -66,11 +73,11 @@ export function useEyeTimer() {
   }, []);
 
   const bumpStats = useCallback((field: keyof DayStats) => {
-    setStats((prev) => {
-      const next = { ...prev, [field]: prev[field] + 1 };
-      const all = readJSON<Record<string, DayStats>>(STATS_KEY, {});
-      all[dayKey(new Date())] = next;
-      localStorage.setItem(STATS_KEY, JSON.stringify(all));
+    setAllStats((prev) => {
+      const key = dayKey(new Date());
+      const day = prev[key] ?? EMPTY_DAY;
+      const next = { ...prev, [key]: { ...day, [field]: day[field] + 1 } };
+      localStorage.setItem(STATS_KEY, JSON.stringify(next));
       return next;
     });
   }, []);
@@ -78,13 +85,13 @@ export function useEyeTimer() {
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
-  // Heartbeat while running.
-  const running = state.phase !== "idle" && !isPaused(state);
+  // Heartbeat: fast while counting down, slow otherwise (to notice working hours changing).
+  const paused = isPaused(state);
+  const fast = state.phase !== "idle" && !paused;
   useEffect(() => {
-    if (!running) return;
-    const id = window.setInterval(() => setNow(Date.now()), 250);
+    const id = window.setInterval(() => setNow(Date.now()), fast ? 250 : 1000);
     return () => window.clearInterval(id);
-  }, [running]);
+  }, [fast]);
 
   // Phase transitions.
   useEffect(() => {
@@ -93,16 +100,37 @@ export function useEyeTimer() {
     if (!r.event) return;
     setState(r.state);
     if (r.event === "break-start") {
-      if (s.sound) playChime("break");
-      notify("Time to look away", `Look at something ${20} feet (6 m) away for ${s.breakSeconds} seconds.`);
+      if (s.sound) playSound(s.soundKind, s.volume, "start");
+      notify("Time to look away", `Look at something 20 feet (6 m) away for ${s.breakSeconds} seconds.`);
     } else {
       bumpStats("breaks");
-      if (s.sound) playChime("focus");
+      if (s.sound) playSound(s.soundKind, s.volume, "end");
       notify("Nice — eyes rested", `Next break in ${s.focusMinutes} minutes.`);
       toast.success("Break complete. Your eyes thank you.");
       lastBlinkRef.current = Date.now();
     }
   }, [now, state, bumpStats]);
+
+  // Working hours: pause outside the window, pick back up when it opens.
+  const inHours = isWithinWorkHours(settings, new Date(now));
+  useEffect(() => {
+    if (inHours) setOverride(false);
+  }, [inHours]);
+  useEffect(() => {
+    if (state.phase !== "focus") return;
+    if (!inHours && !override && !isPaused(state)) {
+      setState((s) => pauseState(s, Date.now()));
+      setAutoPaused(true);
+      toast("Outside your working hours — reminders are resting.");
+    } else if (inHours && autoPaused && isPaused(state)) {
+      const t = Date.now();
+      lastBlinkRef.current = t;
+      setNow(t);
+      setState((s) => resumeState(s, t));
+      setAutoPaused(false);
+      toast("Working hours started — reminders are back on.");
+    }
+  }, [inHours, override, autoPaused, state]);
 
   // Gentle blink nudges during focus time.
   useEffect(() => {
@@ -122,30 +150,51 @@ export function useEyeTimer() {
     else document.title = `${formatClock(remaining)}${isPaused(state) ? " (paused)" : ""} · Lookaway`;
   }, [state, remaining]);
 
+  // Streaks.
+  const todayKey = dayKey(new Date(now));
+  const stats = allStats[todayKey] ?? EMPTY_DAY;
+  const { workHoursEnabled, workDays } = settings;
+  const { streak, week } = useMemo(() => {
+    const today = parseDayKey(todayKey);
+    const isWork = isWorkDayFn({ ...DEFAULT_SETTINGS, workHoursEnabled, workDays });
+    return { streak: computeStreak(allStats, today, isWork), week: lastDays(allStats, today, 7, isWork) };
+  }, [allStats, todayKey, workHoursEnabled, workDays]);
+
   const askNotifications = useCallback(async () => {
     if (typeof Notification === "undefined") return "unsupported" as const;
     if (Notification.permission === "default") return Notification.requestPermission();
     return Notification.permission;
   }, []);
 
-  const begin = useCallback(() => {
-    unlockAudio();
-    if (settingsRef.current.notifications) void askNotifications();
-    const t = Date.now();
-    lastBlinkRef.current = t;
-    setNow(t);
-    setState(startFocus(settingsRef.current, t));
-  }, [askNotifications]);
+  const outsideNow = () => !isWithinWorkHours(settingsRef.current, new Date());
 
   const actions = {
-    start: begin,
-    pause: () => setState((s) => pauseState(s, Date.now())),
+    start: () => {
+      unlockAudio();
+      if (settingsRef.current.notifications) void askNotifications();
+      const t = Date.now();
+      lastBlinkRef.current = t;
+      setNow(t);
+      setAutoPaused(false);
+      if (outsideNow()) setOverride(true);
+      setState(startFocus(settingsRef.current, t));
+    },
+    pause: () => {
+      setAutoPaused(false);
+      setState((s) => pauseState(s, Date.now()));
+    },
     resume: () => {
+      unlockAudio();
       const t = Date.now();
       setNow(t);
+      setAutoPaused(false);
+      if (outsideNow()) setOverride(true);
       setState((s) => resumeState(s, t));
     },
-    stop: () => setState(IDLE),
+    stop: () => {
+      setAutoPaused(false);
+      setState(IDLE);
+    },
     breakNow: () => {
       unlockAudio();
       const t = Date.now();
@@ -168,5 +217,19 @@ export function useEyeTimer() {
     dismissBlink: () => setBlinkCue(false),
   };
 
-  return { settings, updateSettings, state, now, remaining, stats, blinkCue, actions, askNotifications };
+  return {
+    settings,
+    updateSettings,
+    state,
+    now,
+    remaining,
+    stats,
+    streak,
+    week,
+    inHours,
+    autoPaused,
+    blinkCue,
+    actions,
+    askNotifications,
+  };
 }
