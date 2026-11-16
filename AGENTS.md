@@ -28,3 +28,9 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Project rules
+
+- Timer rules live as pure functions in `src/lib/eye-timer.ts` (tested in `eye-timer.test.ts`); UI hooks only call them. Why: keeps the reminder timing testable and correct.
+- Countdown is derived from end timestamps, never by decrementing a counter. Why: background tabs throttle intervals.
+- Settings and daily stats are stored in the browser's localStorage; no backend. Why: a personal timer needs no account.
