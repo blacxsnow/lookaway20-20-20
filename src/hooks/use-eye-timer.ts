@@ -33,6 +33,7 @@ import {
   type TimerState,
 } from "@/lib/eye-timer";
 import { DEFAULT_KIDS, isTimeUp, type KidsSettings } from "@/lib/kids-mode";
+import { showReminder } from "@/lib/notify";
 
 const SETTINGS_KEY = "lookaway:settings";
 const STATS_KEY = "lookaway:stats";
@@ -49,12 +50,7 @@ function readJSON<T>(key: string, fallback: T): T {
 }
 
 function notify(title: string, body: string) {
-  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
-  try {
-    new Notification(title, { body, tag: "lookaway", silent: false });
-  } catch {
-    /* some mobile browsers only allow notifications from a service worker */
-  }
+  void showReminder(title, body);
 }
 
 export function useEyeTimer() {

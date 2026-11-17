@@ -28,6 +28,8 @@ export default defineConfig({
         filename: "sw.js",
         workbox: {
           globPatterns: ["**/*.{js,css,png,jpg,svg,woff2,webmanifest}"],
+          // Adds the notification-tap handler to the generated worker.
+          importScripts: ["/sw-notify.js"],
           navigateFallback: null,
           navigateFallbackDenylist: [/^\/~oauth/],
           runtimeCaching: [

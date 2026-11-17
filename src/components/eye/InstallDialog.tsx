@@ -59,8 +59,17 @@ export function InstallDialog({ open, onOpenChange, event }: { open: boolean; on
             <Step n={3}>Choose <b>Install app</b> or <b>Add to Home screen</b></Step>
           </ol>
         </section>
+        <section className="rounded-2xl border bg-card p-3 text-xs text-muted-foreground">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-primary">Reminders on Android</h3>
+          <ul className="list-disc space-y-1 pl-4">
+            <li>Pop-up reminders work best while Lookaway is open on screen.</li>
+            <li>When the screen locks or you switch apps, Android may pause Lookaway within minutes, so reminders can be late or missing.</li>
+            <li>After you swipe Lookaway away, it can't send reminders. The timer is still correct when you reopen it.</li>
+            <li>Battery saver (for example on OnePlus) can stop it sooner. Setting Chrome's battery use to <b>Unrestricted</b> can help, but isn't guaranteed.</li>
+          </ul>
+        </section>
         <p className="text-xs text-muted-foreground">
-          Phones pause apps like this when closed or locked, so keep Lookaway open for reminders. If a break was missed, it'll tell you when you come back.
+          iPhone pauses apps like this too, so keep Lookaway open for reminders. If a break was missed, it'll tell you when you come back.
         </p>
       </div>
     </PanelDialog>
