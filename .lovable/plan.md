@@ -61,3 +61,33 @@ Nothing in the design or existing features changes. Only how the timer is rememb
 - Stale saved timer from an older version: handled by validation.
 - Service-worker change only affects the published app; returning users get it after the auto-update.
 - Notifications in background remain best-effort on Android.
+
+## Safeguards (added)
+
+- **Start-up guard:** the timer is not saved until restoring has finished (a "restored" flag), so the empty start state can never overwrite a saved timer.
+- **12-hour rule uses the save time:** every save records when it was written. If the last valid save is more than 12 hours old, the timer resets to the start screen, for running and paused timers alike.
+- All existing behaviour (stats, Kids mode, working hours, snooze, skip, pause, resume) is preserved; no redesign, no database, no Capacitor.
+
+## Final implementation sequence
+
+Step 1 - Timer persistence (separate change, testable alone)
+1. Add pure `serializeTimer` / `restoreTimer` (with save timestamp, validation, 12-hour rule) to `eye-timer.ts`.
+2. Add `timer-restore.test.ts`; run it plus all existing tests.
+3. Wire into `use-eye-timer.ts` with the start-up guard; save on change, clear on Stop.
+4. Browser check: start, reload, time continues; pause, reload, still paused; Stop, reload, start screen.
+
+Step 2 - Service-worker notifications (separate change)
+1. Add `src/lib/notify.ts` (service worker first, page fallback) and swap the call in the hook.
+2. Add `public/sw-notify.js` tap handler and `importScripts` in `vite.config.ts`.
+3. Add the honest Android note to the install guide.
+4. Run all tests again; check the preview still works (worker stays off there).
+
+Step 3 - Record rules in `AGENTS.md`.
+
+## Remaining technical risks
+
+- Phone clock changes (manual time change, time zone travel) can make restored time look early or late; the 12-hour rule and "never negative" checks limit the effect.
+- Two open tabs could both save the timer; the last one to change wins. Rare for a phone app.
+- Background notifications on OnePlus remain best-effort; only a native app fixes that.
+- The worker update reaches installed phones only after a publish and the next app open.
+- If the saved timer format changes later, old saves are ignored rather than migrated.
