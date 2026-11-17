@@ -332,3 +332,59 @@ export function normalizeSettings(raw: Partial<EyeSettings>): EyeSettings {
   if (!SOUND_KINDS.includes(s.soundKind)) s.soundKind = DEFAULT_SETTINGS.soundKind;
   return s;
 }
+
+// ---------- Timer persistence ----------
+
+/** Saved timers older than this are discarded (e.g. app reopened the next day). */
+export const MAX_RESTORE_AGE_MS = 12 * 60 * 60_000;
+
+export interface SavedTimer {
+  v: 1;
+  /** When this save was written (ms). */
+  savedAt: number;
+  state: TimerState;
+  /** Paused automatically by working hours (so it resumes when hours begin). */
+  autoPaused: boolean;
+}
+
+export function serializeTimer(state: TimerState, now: number, autoPaused = false): SavedTimer {
+  return { v: 1, savedAt: now, state: { ...state }, autoPaused };
+}
+
+const num = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
+
+function validState(s: unknown): s is TimerState {
+  if (!s || typeof s !== "object") return false;
+  const t = s as TimerState;
+  if (t.phase !== "focus" && t.phase !== "break") return false;
+  if (!num(t.durationMs) || t.durationMs <= 0) return false;
+  const running = num(t.endsAt) && t.pausedRemainingMs === null;
+  const paused = t.endsAt === null && num(t.pausedRemainingMs) && t.pausedRemainingMs >= 0;
+  return running || paused;
+}
+
+/**
+ * Rebuild the timer after the app was reopened. Returns IDLE for missing,
+ * corrupt or stale (>12h since last save) data. A focus phase that ended while
+ * closed is returned as-is so the normal tick starts the break (with the
+ * "missed break" message). A break that ended while closed returns to focus
+ * without being counted.
+ */
+export function restoreTimer(
+  saved: unknown,
+  settings: EyeSettings,
+  now: number,
+): { state: TimerState; autoPaused: boolean } {
+  const none = { state: IDLE, autoPaused: false };
+  if (!saved || typeof saved !== "object") return none;
+  const s = saved as SavedTimer;
+  if (s.v !== 1 || !num(s.savedAt) || !validState(s.state)) return none;
+  // Future save time (clock moved back) or too old: start fresh.
+  if (s.savedAt > now + 60_000 || now - s.savedAt > MAX_RESTORE_AGE_MS) return none;
+  const st = s.state;
+  const autoPaused = s.autoPaused === true && st.pausedRemainingMs !== null;
+  if (st.phase === "break" && st.endsAt !== null && st.endsAt <= now) {
+    return { state: startFocus(settings, now), autoPaused: false };
+  }
+  return { state: { ...st }, autoPaused };
+}

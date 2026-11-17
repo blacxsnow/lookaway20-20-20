@@ -22,6 +22,8 @@ import {
   pause as pauseState,
   remainingMs,
   resume as resumeState,
+  restoreTimer,
+  serializeTimer,
   snooze as snoozeState,
   startBreak,
   startFocus,
@@ -35,6 +37,7 @@ import { DEFAULT_KIDS, isTimeUp, type KidsSettings } from "@/lib/kids-mode";
 const SETTINGS_KEY = "lookaway:settings";
 const STATS_KEY = "lookaway:stats";
 const KIDS_KEY = "lookaway:kids";
+const TIMER_KEY = "lookaway:timer";
 
 function readJSON<T>(key: string, fallback: T): T {
   try {
@@ -66,13 +69,63 @@ export function useEyeTimer() {
   const lastBlinkRef = useRef<number>(Date.now());
   const [kids, setKids] = useState<KidsSettings>(DEFAULT_KIDS);
   const lastBeatRef = useRef<number>(Date.now());
+  // Guard: never save the timer until the saved one has been restored.
+  const [restored, setRestored] = useState(false);
 
-  // Load saved settings and stats after hydration.
+  // Load saved settings, stats and the running timer after hydration.
   useEffect(() => {
-    setSettings(normalizeSettings(readJSON(SETTINGS_KEY, DEFAULT_SETTINGS)));
+    const loaded = normalizeSettings(readJSON(SETTINGS_KEY, DEFAULT_SETTINGS));
+    setSettings(loaded);
     setAllStats(readJSON<Record<string, DayStats>>(STATS_KEY, {}));
     setKids(readJSON(KIDS_KEY, DEFAULT_KIDS));
+    let saved: unknown = null;
+    try {
+      const raw = localStorage.getItem(TIMER_KEY);
+      saved = raw ? JSON.parse(raw) : null;
+    } catch {
+      saved = null;
+    }
+    const t = Date.now();
+    const r = restoreTimer(saved, loaded, t);
+    if (r.state.phase !== "idle") {
+      lastBlinkRef.current = t;
+      setNow(t);
+      setState(r.state);
+      setAutoPaused(r.autoPaused);
+    }
+    setRestored(true);
   }, []);
+
+  // Persist the timer whenever it changes (cleared when idle / stopped).
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      if (state.phase === "idle") localStorage.removeItem(TIMER_KEY);
+      else localStorage.setItem(TIMER_KEY, JSON.stringify(serializeTimer(state, Date.now(), autoPaused)));
+    } catch {
+      /* storage full or blocked; timer still works in memory */
+    }
+  }, [restored, state, autoPaused]);
+
+  // Refresh the save time when the app is hidden or closed, so the 12-hour rule
+  // measures from when the app was last used, not when the timer last changed.
+  useEffect(() => {
+    if (!restored || state.phase === "idle") return;
+    const save = () => {
+      try {
+        localStorage.setItem(TIMER_KEY, JSON.stringify(serializeTimer(state, Date.now(), autoPaused)));
+      } catch {
+        /* ignore */
+      }
+    };
+    const onVis = () => document.visibilityState === "hidden" && save();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pagehide", save);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pagehide", save);
+    };
+  }, [restored, state, autoPaused]);
 
   const updateKids = useCallback((patch: Partial<KidsSettings>) => {
     setKids((prev) => {
@@ -239,6 +292,11 @@ export function useEyeTimer() {
     stop: () => {
       setAutoPaused(false);
       setState(IDLE);
+      try {
+        localStorage.removeItem(TIMER_KEY);
+      } catch {
+        /* ignore */
+      }
     },
     breakNow: () => {
       unlockAudio();

@@ -14,3 +14,5 @@
 - [x] Weekly insights
 - [x] Gentle eye exercises during breaks
 - [ ] Optional accounts + cloud sync (waiting on user decision)
+- [x] Step 1: keep the running timer after closing/reopening the app
+- [ ] Step 2: phone notifications through the service worker (waiting on approval)
