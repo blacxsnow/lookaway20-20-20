@@ -1,7 +1,5 @@
 # Lookaway20 20
 
-Build an app that is related to 20 20 20 eye blink reminder for screen time related eye fatigue. I dont know much about detailing help with it
-
 This project was built with [Lovable](https://lovable.dev).
 
 **Live app**: https://lookaway20-20-20.lovable.app
