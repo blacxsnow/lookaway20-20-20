@@ -16,6 +16,12 @@ dist-ssr
 .nitro
 *.local
 
+# Android local build and signing state
+android/.gradle
+android/local.properties
+*.jks
+*.keystore
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars

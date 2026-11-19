@@ -15,6 +15,9 @@ export default defineConfig({
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
+    // The app has no server functions or routes requiring SSR. SPA mode produces
+    // dist/index.html plus packaged assets that Capacitor can load locally.
+    spa: { enabled: true },
   },
   vite: {
     plugins: [
@@ -27,7 +30,7 @@ export default defineConfig({
         devOptions: { enabled: false },
         filename: "sw.js",
         workbox: {
-          globPatterns: ["**/*.{js,css,png,jpg,svg,woff2,webmanifest}"],
+          globPatterns: ["**/*.{js,css,png,jpg,svg,woff,woff2,webmanifest}"],
           // Adds the notification-tap handler to the generated worker.
           importScripts: ["/sw-notify.js"],
           navigateFallback: null,
