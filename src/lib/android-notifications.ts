@@ -10,7 +10,7 @@ export function isAndroidApp(): boolean {
   return Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
 }
 
-export async function requestNativeNotificationPermission(): Promise<"granted" | "denied" | "prompt" | "unsupported"> {
+export async function requestNativeNotificationPermission(): Promise<"granted" | "denied" | "unsupported"> {
   if (!isAndroidApp()) return "unsupported";
   try {
     const status = await LocalNotifications.checkPermissions();

@@ -59,6 +59,9 @@ commit passwords or signing keys.
 - `src/lib/android-notifications.ts` schedules one stable reminder notification
   at the timer deadline using `@capacitor/local-notifications`.
 - Native notifications are reconciled on timer changes and app resume.
+- Android shows a silent, ongoing countdown notification while the timer is active.
+  Its native chronometer updates without a JavaScript interval, and a native
+  deadline receiver changes the displayed phase while the app is closed.
 - Android 13+ notification permission is requested only when notifications
   are enabled and permission has not already been denied.
 - Scheduling is inexact by default; exact-alarm restrictions and OEM battery

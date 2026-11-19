@@ -34,6 +34,7 @@ import {
 } from "@/lib/eye-timer";
 import { DEFAULT_KIDS, isTimeUp, type KidsSettings } from "@/lib/kids-mode";
 import { showReminder } from "@/lib/notify";
+import { syncPersistentTimerNotification } from "@/lib/persistent-timer-notification";
 import {
   isAndroidApp,
   reconcileTimerReminder,
@@ -112,6 +113,7 @@ export function useEyeTimer() {
   useEffect(() => {
     if (!restored) return;
     void reconcileTimerReminder(state, settings, Date.now());
+    void syncPersistentTimerNotification(state, settings, Date.now());
   }, [restored, state, settings, autoPaused]);
 
   useEffect(() => {
@@ -119,6 +121,7 @@ export function useEyeTimer() {
     const reconcile = () => {
       if (document.visibilityState === "visible") {
         void reconcileTimerReminder(state, settingsRef.current, Date.now());
+        void syncPersistentTimerNotification(state, settingsRef.current, Date.now());
       }
     };
     document.addEventListener("visibilitychange", reconcile);
@@ -293,13 +296,25 @@ export function useEyeTimer() {
     start: () => {
       if (timeUp) return;
       unlockAudio();
-      if (settingsRef.current.notifications) void askNotifications();
       const t = Date.now();
       lastBlinkRef.current = t;
       setNow(t);
       setAutoPaused(false);
       if (outsideNow()) setOverride(true);
-      setState(startFocus(settingsRef.current, t));
+      const nextState = startFocus(settingsRef.current, t);
+      setState(nextState);
+      if (settingsRef.current.notifications) {
+        void askNotifications()
+          .then((permission) => {
+            if (permission === "granted") {
+              return syncPersistentTimerNotification(nextState, settingsRef.current, Date.now());
+            }
+            return undefined;
+          })
+          .catch((error: unknown) => {
+            console.error("Unable to request notification permission.", error);
+          });
+      }
     },
     pause: () => {
       setAutoPaused(false);

@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { useEyeTimer } from "@/hooks/use-eye-timer";
 import { formatClock, formatDuration, formatTime12, isPaused, progress, workHoursSummary } from "@/lib/eye-timer";
 import { allowanceLeftMs, starsFor } from "@/lib/kids-mode";
+import { isAndroidApp } from "@/lib/android-notifications";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -191,9 +192,11 @@ function Index() {
               </Button>
             </div>
           )}
-          <p className="text-xs text-muted-foreground">
-            Keep this tab open. We'll play a sound and pop up an alert when it's time to look away.
-          </p>
+          {!isAndroidApp() && (
+            <p className="text-xs text-muted-foreground">
+              Keep this tab open. We'll play a sound and pop up an alert when it's time to look away.
+            </p>
+          )}
         </div>
 
         <div className="w-full space-y-3">
