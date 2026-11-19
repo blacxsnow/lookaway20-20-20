@@ -34,6 +34,12 @@ import {
 } from "@/lib/eye-timer";
 import { DEFAULT_KIDS, isTimeUp, type KidsSettings } from "@/lib/kids-mode";
 import { showReminder } from "@/lib/notify";
+import {
+  isAndroidApp,
+  reconcileTimerReminder,
+  registerNativeNotificationTapHandler,
+  requestNativeNotificationPermission,
+} from "@/lib/android-notifications";
 
 const SETTINGS_KEY = "lookaway:settings";
 const STATS_KEY = "lookaway:stats";
@@ -102,6 +108,27 @@ export function useEyeTimer() {
       /* storage full or blocked; timer still works in memory */
     }
   }, [restored, state, autoPaused]);
+
+  useEffect(() => {
+    if (!restored) return;
+    void reconcileTimerReminder(state, settings, Date.now());
+  }, [restored, state, settings, autoPaused]);
+
+  useEffect(() => {
+    const dispose = registerNativeNotificationTapHandler();
+    const reconcile = () => {
+      if (document.visibilityState === "visible") {
+        void reconcileTimerReminder(state, settingsRef.current, Date.now());
+      }
+    };
+    document.addEventListener("visibilitychange", reconcile);
+    window.addEventListener("pageshow", reconcile);
+    return () => {
+      dispose?.();
+      document.removeEventListener("visibilitychange", reconcile);
+      window.removeEventListener("pageshow", reconcile);
+    };
+  }, [state]);
 
   // Refresh the save time when the app is hidden or closed, so the 12-hour rule
   // measures from when the app was last used, not when the timer last changed.
@@ -254,6 +281,7 @@ export function useEyeTimer() {
   }, [allStats, todayKey, workHoursEnabled, workDays]);
 
   const askNotifications = useCallback(async () => {
+    if (isAndroidApp()) return requestNativeNotificationPermission();
     if (typeof Notification === "undefined") return "unsupported" as const;
     if (Notification.permission === "default") return Notification.requestPermission();
     return Notification.permission;
@@ -288,6 +316,7 @@ export function useEyeTimer() {
     stop: () => {
       setAutoPaused(false);
       setState(IDLE);
+      void reconcileTimerReminder(IDLE, settingsRef.current, Date.now());
       try {
         localStorage.removeItem(TIMER_KEY);
       } catch {
